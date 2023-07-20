@@ -16,11 +16,15 @@ import org.apache.kafka.streams.kstream.Produced;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
 
 public class KafkaStreamsApplication {
@@ -54,9 +58,9 @@ public class KafkaStreamsApplication {
         builder
             .stream(inputTopic, Consumed.with(stringSerde, jsonSerde))
             .peek((k,v) -> logger.info("Observed event: {}", v))
-            .mapValues(s -> s.get("message"))
-            .peek((k,v) -> logger.info("Transformed event: {}", v))
-            .to(outputTopic, Produced.with(stringSerde, jsonSerde));
+            // .mapValues(s -> s.get("Events"))
+            // .peek((k,v) -> logger.info("Transformed event: {}", v))
+            .to((key, completedOrder, recordContext) -> recordContext.topic() + ".split", Produced.with(stringSerde, jsonSerde));
 
         return builder.build();
     }
@@ -80,21 +84,16 @@ public class KafkaStreamsApplication {
                     props,
                     Arrays.asList(
                             new NewTopic(inputTopic, Optional.empty(), Optional.empty()),
-                            new NewTopic(outputTopic, Optional.empty(), Optional.empty())));
-
-            // Ramdomizer only used to produce sample data for this application, not typical usage
-            try (Util.Randomizer rando = utility.startNewRandomizer(props, inputTopic)) {
-
-                KafkaStreams kafkaStreams = new KafkaStreams(
-                        buildTopology(inputTopic, outputTopic),
-                        props);
+                            new NewTopic(inputTopic + ".split", Optional.empty(), Optional.empty())));
+            // try {
+                KafkaStreams kafkaStreams = new KafkaStreams(buildTopology(inputTopic, outputTopic),props);
 
                 Runtime.getRuntime().addShutdownHook(new Thread(kafkaStreams::close));
 
                 logger.info("Kafka Streams 101 App Started");
                 runKafkaStreams(kafkaStreams);
 
-            }
+            // }
         }
     }
 }

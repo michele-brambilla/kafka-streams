@@ -1,23 +1,37 @@
 package io.confluent.developer;
 
-import com.github.javafaker.Faker;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Properties;
+import java.util.Scanner;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+
 import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.errors.TopicExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.stream.Collectors;
+import com.github.javafaker.Faker;
 
 public class Util implements AutoCloseable {
-
-    private final Logger logger = LoggerFactory.getLogger(Util.class);
+    
+    private static final Logger logger = LoggerFactory.getLogger(Util.class);
     private ExecutorService executorService = Executors.newFixedThreadPool(1);
 
     public class Randomizer implements AutoCloseable, Runnable {
@@ -60,6 +74,43 @@ public class Util implements AutoCloseable {
         return rv;
     }
 
+    public class Telemetry implements AutoCloseable, Runnable {
+        private Properties props;
+        private String topic;
+        private Producer<String, String> producer;
+        private boolean closed;
+
+        public Telemetry(Properties producerProps, String topic) {
+            this.closed = false;
+            this.topic = topic;
+            this.props = producerProps;
+            this.props.setProperty("client.id", "faker");
+        }
+
+        public void run() {
+            try (KafkaProducer producer = new KafkaProducer<String, String>(props)) {
+                String Message = new String();
+                logger.error(Message);
+                Object result = producer.send(new ProducerRecord<>(this.topic, Message)).get();
+                Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    logger.error(e.toString());
+                 }
+            catch (Exception ex) {
+                logger.error(ex.toString());
+            }
+        }
+        public void close()  {
+            closed = true;
+        }
+    }
+
+    public Telemetry startNewTelemetry(Properties producerProps, String topic) {
+        Telemetry rv = new Telemetry(producerProps, topic);
+        executorService.submit(rv);
+        return rv;
+    }
+
     public void createTopics(final Properties allProps, List<NewTopic> topics)
             throws InterruptedException, ExecutionException, TimeoutException {
         try (final AdminClient client = AdminClient.create(allProps)) {
@@ -78,12 +129,12 @@ public class Util implements AutoCloseable {
                 .map(t -> t.name())
                 .collect(Collectors.toCollection(LinkedList::new));
 
-            logger.info("Asking cluster for topic descriptions");
-            client
-                .describeTopics(topicNames)
-                .allTopicNames()
-                .get(10, TimeUnit.SECONDS)
-                .forEach((name, description) -> logger.info("Topic Description: {}", description.toString()));
+            // logger.info("Asking cluster for topic descriptions");
+            // client
+            //     .describeTopics(topicNames)
+            //     .allTopicNames()
+            //     .get(10, TimeUnit.SECONDS)
+            //     .forEach((name, description) -> logger.info("Topic Description: {}", description.toString()));
         }
     }
 
