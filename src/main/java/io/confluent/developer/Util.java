@@ -40,7 +40,7 @@ public class Util implements AutoCloseable {
                     try {
                         Object result = producer.send(new ProducerRecord<>(
                                 this.topic,
-                                "{\"message\": \"" + faker.chuckNorris().fact() +"\"}")).get();
+                                "{\"message\": \"" + faker.hitchhikersGuideToTheGalaxy().character() +"\"}")).get();
                         Thread.sleep(5000);
                     } catch (InterruptedException e) {
                     }
